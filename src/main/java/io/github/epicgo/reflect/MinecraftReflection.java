@@ -126,6 +126,18 @@ public class MinecraftReflection {
     }
 
     /**
+     * Envía un paquete de información del jugador al jugador especificado.
+     *
+     * @param player el jugador al que se enviará el paquete.
+     * @param action la acción del paquete de información del jugador.
+     * @param target el jugador para el que se crea el paquete.
+     */
+    public static void sendPlayerInfoPacket(Player player, EnumPlayerInfoAction action, Player target) {
+        // Envía al jugador especificado el paquete de información del jugador creado para el jugador objetivo
+        sendPacket(player, createPlayerInfoPacket(action, target));
+    }
+
+    /**
      * Crea un paquete de información del jugador para un jugador específico.
      *
      * @param action la acción del paquete de información del jugador.
