@@ -2,6 +2,11 @@ package io.github.epicgo.reflect;
 
 import org.bukkit.Bukkit;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -120,6 +125,354 @@ public final class Reflection {
         // Convertir el StringBuffer a String y devolverlo
         return output.toString();
     }
+
+    /**
+     * Obtiene la clase de Minecraft correspondiente al nombre proporcionado.
+     *
+     * @param name el nombre de la clase de Minecraft.
+     * @return la clase correspondiente.
+     * @throws IllegalArgumentException si no se puede encontrar la clase.
+     */
+    public static Class<?> getMinecraftClass(String name) {
+        // Combina el prefijo de Minecraft con el nombre de la clase y obtiene la clase correspondiente
+        return getCanonicalClass(NMS_PREFIX + "." + name);
+    }
+
+    /**
+     * Obtiene la clase de CraftBukkit correspondiente al nombre proporcionado.
+     *
+     * @param name el nombre de la clase de CraftBukkit.
+     * @return la clase correspondiente.
+     * @throws IllegalArgumentException si no se puede encontrar la clase.
+     */
+    public static Class<?> getCraftBukkitClass(String name) {
+        // Combina el prefijo de CraftBukkit con el nombre de la clase y obtiene la clase correspondiente
+        return getCanonicalClass(OBC_PREFIX + "." + name);
+    }
+
+    /**
+     * Obtiene un acceso al campo para la clase, nombre de campo y tipo de campo proporcionados.
+     *
+     * @param target    la clase de destino.
+     * @param name      el nombre del campo.
+     * @param fieldType el tipo de campo.
+     * @param <T>       el tipo de dato del campo.
+     * @return un acceso al campo para la clase, nombre de campo y tipo de campo proporcionados.
+     */
+    public static <T> FieldAccessor<T> getField(Class<?> target, String name, Class<T> fieldType) {
+        return getField(target, name, fieldType, 0);
+    }
+
+    /**
+     * Obtiene un acceso al campo para el nombre de clase, nombre de campo y tipo de campo proporcionados.
+     *
+     * @param className el nombre de la clase.
+     * @param name      el nombre del campo.
+     * @param fieldType el tipo de campo.
+     * @param <T>       el tipo de dato del campo.
+     * @return un acceso al campo para el nombre de clase, nombre de campo y tipo de campo proporcionados.
+     */
+    public static <T> FieldAccessor<T> getField(String className, String name, Class<T> fieldType) {
+        return getField(getClass(className), name, fieldType, 0);
+    }
+
+    /**
+     * Obtiene un acceso al campo para la clase, tipo de campo y posición de índice proporcionados.
+     *
+     * @param target    la clase de destino.
+     * @param fieldType el tipo de campo.
+     * @param index     el índice del campo.
+     * @param <T>       el tipo de dato del campo.
+     * @return un acceso al campo para la clase, tipo de campo y posición de índice proporcionados.
+     */
+    public static <T> FieldAccessor<T> getField(Class<?> target, Class<T> fieldType, int index) {
+        return getField(target, null, fieldType, index);
+    }
+
+    /**
+     * Obtiene un acceso al campo para el nombre de clase, tipo de campo y posición de índice proporcionados.
+     *
+     * @param className el nombre de la clase.
+     * @param fieldType el tipo de campo.
+     * @param index     el índice del campo.
+     * @param <T>       el tipo de dato del campo.
+     * @return un acceso al campo para el nombre de clase, tipo de campo y posición de índice proporcionados.
+     */
+    public static <T> FieldAccessor<T> getField(String className, Class<T> fieldType, int index) {
+        return getField(getClass(className), fieldType, index);
+    }
+
+    /**
+     * Obtiene un acceso al campo para la clase, nombre de campo, tipo de campo y posición de índice proporcionados.
+     *
+     * @param target    la clase de destino.
+     * @param name      el nombre del campo.
+     * @param fieldType el tipo de campo.
+     * @param index     el índice del campo.
+     * @param <T>       el tipo de dato del campo.
+     * @return un acceso al campo para la clase, nombre de campo, tipo de campo y posición de índice proporcionados.
+     */
+    private static <T> FieldAccessor<T> getField(Class<?> target, String name, Class<T> fieldType, int index) {
+        for (final Field field : target.getDeclaredFields()) {
+            if ((name == null || field.getName().equals(name)) && fieldType.isAssignableFrom(field.getType()) && index-- <= 0) {
+                field.setAccessible(true);
+
+                // Retorna un nuevo objeto FieldAccessor con la lógica adecuada
+                return new FieldAccessor<T>() {
+                    @Override
+                    public T get(Object target) {
+                        try {
+                            // Obtiene el valor del campo
+                            return (T) field.get(target);
+                        } catch (IllegalAccessException e) {
+                            // Si hay un error al acceder al campo, lanza una excepción
+                            throw new RuntimeException("Cannot access reflection.", e);
+                        }
+                    }
+
+                    @Override
+                    public void set(Object target, Object value) {
+                        try {
+                            // Establece el valor del campo
+                            field.set(target, value);
+                        } catch (IllegalAccessException e) {
+                            // Si hay un error al acceder al campo, lanza una excepción
+                            throw new RuntimeException("Cannot access reflection.", e);
+                        }
+                    }
+
+                    @Override
+                    public boolean hasField(Object target) {
+                        // Verifica si el campo pertenece a la clase especificada
+                        return field.getDeclaringClass().isAssignableFrom(target.getClass());
+                    }
+
+                    @Override
+                    public String getFieldName() {
+                        // Obtiene el nombre del campo
+                        return field.getName();
+                    }
+
+                    @Override
+                    public Class<?> getFieldType() {
+                        // Obtiene el tipo de campo
+                        return field.getType();
+                    }
+
+                    @Override
+                    public boolean isStatic() {
+                        // Verifica si el campo es estático
+                        return Modifier.isStatic(field.getModifiers());
+                    }
+                };
+            }
+        }
+
+        // Si no se encuentra ningún campo coincidente, busca en las superclases
+        if (target.getSuperclass() != null)
+            return getField(target.getSuperclass(), name, fieldType, index);
+
+        // Si no se encuentra ningún campo coincidente en la jerarquía de clases, lanza una excepción
+        throw new IllegalArgumentException("Cannot find field with type " + fieldType);
+    }
+
+    /**
+     * Obtiene un invocador de método para el nombre de clase, nombre de método y parámetros proporcionados.
+     *
+     * @param className  el nombre de la clase.
+     * @param methodName el nombre del método.
+     * @param params     los tipos de parámetros del método.
+     * @return un invocador de método para el nombre de clase, nombre de método y parámetros proporcionados.
+     */
+    public static MethodInvoker getMethod(String className, String methodName, Class<?>... params) {
+        // Obtiene un invocador de método con la clase correspondiente y la lógica predeterminada
+        return getTypedMethod(getClass(className), methodName, null, true, params);
+    }
+
+    /**
+     * Obtiene un invocador de método para la clase, nombre de método y parámetros proporcionados.
+     *
+     * @param clazz      el tipo de clase.
+     * @param methodName el nombre del método.
+     * @param params     los tipos de parámetros del método.
+     * @return un invocador de método para la clase, nombre de método y parámetros proporcionados.
+     */
+    public static MethodInvoker getMethod(Class<?> clazz, String methodName, Class<?>... params) {
+        // Obtiene un invocador de método con la clase correspondiente y la lógica predeterminada
+        return getTypedMethod(clazz, methodName, null, true, params);
+    }
+
+    /**
+     * Obtiene un invocador de método para la clase, nombre de método y parámetros proporcionados,
+     * pero solo busca en los métodos declarados en esa clase (sin buscar en sus superclases).
+     *
+     * @param clazz      el tipo de clase.
+     * @param methodName el nombre del método.
+     * @param params     los tipos de parámetros del método.
+     * @return un invocador de método para la clase, nombre de método y parámetros proporcionados.
+     */
+    public static MethodInvoker getSingleMethod(Class<?> clazz, String methodName, Class<?>... params) {
+        // Obtiene un invocador de método con la clase correspondiente y la lógica para buscar un solo método
+        return getTypedMethod(clazz, methodName, null, false, params);
+    }
+
+    /**
+     * Obtiene un invocador de método para la clase, nombre de método, tipo de retorno y parámetros proporcionados.
+     *
+     * @param clazz      el tipo de clase.
+     * @param methodName el nombre del método.
+     * @param returnType el tipo de retorno del método.
+     * @param declared   un indicador para buscar solo en los métodos declarados en esa clase (sin buscar en sus superclases).
+     * @param params     los tipos de parámetros del método.
+     * @return un invocador de método para la clase, nombre de método, tipo de retorno y parámetros proporcionados.
+     */
+    public static MethodInvoker getTypedMethod(Class<?> clazz, String methodName, Class<?> returnType, boolean declared, Class<?>... params) {
+        for (final Method method : (declared ? clazz.getDeclaredMethods() : clazz.getMethods())) {
+            if ((methodName == null || method.getName().equals(methodName))
+                    && (returnType == null || method.getReturnType().equals(returnType))
+                    && Arrays.equals(method.getParameterTypes(), params)) {
+                method.setAccessible(true);
+
+                // Retorna un nuevo objeto MethodInvoker con la lógica adecuada
+                return new MethodInvoker() {
+                    @Override
+                    public Object invoke(Object target, Object... arguments) {
+                        try {
+                            return method.invoke(target, arguments);
+                        } catch (Exception e) {
+                            // Si se produce un error al invocar el método, lanza una excepción
+                            throw new RuntimeException("Cannot invoke method " + method, e);
+                        }
+                    }
+
+                    @Override
+                    public String getMethodName() {
+                        // Devuelve el nombre del método
+                        return method.getName();
+                    }
+
+                    @Override
+                    public Class<?> getReturnType() {
+                        // Devuelve el tipo de retorno del método
+                        return method.getReturnType();
+                    }
+
+                    @Override
+                    public Class<?>[] getParameterTypes() {
+                        // Devuelve los tipos de parámetros del método
+                        return method.getParameterTypes();
+                    }
+
+                    @Override
+                    public boolean isStatic() {
+                        // Verifica si el método es estático
+                        return Modifier.isStatic(method.getModifiers());
+                    }
+                };
+            }
+        }
+
+        // Si no se encuentra ningún método coincidente, busca en las superclases
+        if (clazz.getSuperclass() != null)
+            return getTypedMethod(clazz.getSuperclass(), methodName, returnType, declared, params);
+
+        // Si no se encuentra ningún método coincidente en la jerarquía de clases, lanza una excepción
+        throw new IllegalStateException(String.format("Unable to find method %s (%s).", methodName, Arrays.asList(params)));
+    }
+
+
+    /**
+     * Obtiene un invocador de constructor para el tipo de clase y los parámetros de constructor proporcionados.
+     *
+     * @param className el nombre de la clase.
+     * @param params    los tipos de parámetros del constructor.
+     * @return un invocador de constructor para el tipo de clase y los parámetros de constructor proporcionados.
+     * @throws IllegalStateException si no se puede encontrar el constructor.
+     */
+    public static ConstructorInvoker getConstructor(String className, Class<?>... params) {
+        // Obtiene la clase correspondiente al nombre proporcionado y llama al método getConstructor apropiado.
+        return getConstructor(getClass(className), params);
+    }
+
+    /**
+     * Obtiene un invocador de constructor para el tipo de clase y los parámetros de constructor proporcionados.
+     *
+     * @param clazz  el tipo de clase.
+     * @param params los tipos de parámetros del constructor.
+     * @return un invocador de constructor para el tipo de clase y los parámetros de constructor proporcionados.
+     * @throws IllegalStateException si no se puede encontrar el constructor.
+     */
+    public static ConstructorInvoker getConstructor(Class<?> clazz, Class<?>... params) {
+        // Itera sobre todos los constructores declarados de la clase
+        for (final Constructor<?> constructor : clazz.getDeclaredConstructors()) {
+            // Compara los tipos de parámetros del constructor con los tipos proporcionados
+            if (Arrays.equals(constructor.getParameterTypes(), params)) {
+                // Establece el constructor accesible
+                constructor.setAccessible(true);
+
+                // Devuelve un invocador de constructor que instancia el constructor con los argumentos proporcionados
+                return new ConstructorInvoker() {
+                    @Override
+                    public Object invoke(Object... arguments) {
+                        try {
+                            return constructor.newInstance(arguments);
+                        } catch (Exception e) {
+                            // Si se produce un error al invocar el constructor, lanza una excepción
+                            throw new RuntimeException("Cannot invoke constructor " + constructor, e);
+                        }
+                    }
+
+                    @Override
+                    public Class<?>[] getParameterTypes() {
+                        // Devuelve los tipos de parámetros del constructor
+                        return constructor.getParameterTypes();
+                    }
+                };
+            }
+        }
+
+        // Si no se encuentra ningún constructor coincidente, lanza una excepción
+        throw new IllegalStateException(String.format("Unable to find constructor for %s (%s).", clazz, Arrays.asList(params)));
+    }
+
+
+    /**
+     * Obtiene el valor del enum correspondiente al nombre de la clase de enum y el nombre del enum proporcionados.
+     *
+     * @param className el nombre de la clase de enum.
+     * @param enumName  el nombre del enum.
+     * @return el valor del enum correspondiente.
+     */
+    public static Object getEnum(String className, String enumName) {
+        // Expande las variables en el nombre de la clase de enum, obtiene la clase correspondiente y llama al método getEnum apropiado.
+        return getEnum(getCanonicalClass(expandVariables(className)), enumName);
+    }
+
+    /**
+     * Obtiene el valor del enum correspondiente al tipo de enum y el nombre del enum proporcionados.
+     *
+     * @param enumType el tipo de enum.
+     * @param enumName el nombre del enum.
+     * @return el valor del enum correspondiente.
+     */
+    public static Object getEnum(Class<?> enumType, String enumName) {
+        try {
+            // Intenta obtener el campo declarado del enum con el nombre proporcionado
+            Field field = enumType.getDeclaredField(enumName);
+            field.setAccessible(true);
+
+            // Si se encuentra el campo
+            // Devuelve el valor del campo (enum constante)
+            return field.get(null);
+        } catch (ReflectiveOperationException e) {
+            // Si ocurre alguna excepción de operación reflexiva (por ejemplo, campo no encontrado, excepción de seguridad),
+            // imprime la pila de llamadas para propósitos de depuración
+            e.printStackTrace();
+        }
+        // Devuelve null si no se encuentra el enum constante o si ocurre alguna excepción de operación reflexiva
+        return null;
+    }
+
 
     /**
      * Interfaz que proporciona un método para invocar un constructor específico de una clase.
