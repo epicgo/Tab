@@ -3,6 +3,49 @@ package io.github.epicgo.reflect;
 public final class Reflection {
 
     /**
+     * Interfaz que proporciona un método para invocar un método específico en un objeto.
+     */
+    public interface MethodInvoker {
+
+        /**
+         * Invoca el método especificado en el objeto objetivo con los argumentos dados.
+         *
+         * @param target    el objeto sobre el cual se invocará el método.
+         * @param arguments los argumentos que se pasarán al método.
+         * @return el valor devuelto por el método, o null si es void.
+         */
+        Object invoke(Object target, Object... arguments);
+
+        /**
+         * Obtiene el nombre del método.
+         *
+         * @return el nombre del método.
+         */
+        String getMethodName();
+
+        /**
+         * Obtiene el tipo de retorno del método.
+         *
+         * @return el tipo de retorno del método.
+         */
+        Class<?> getReturnType();
+
+        /**
+         * Obtiene los tipos de parámetros del método.
+         *
+         * @return un array de clases que representan los tipos de parámetros del método.
+         */
+        Class<?>[] getParameterTypes();
+
+        /**
+         * Verifica si el método es estático.
+         *
+         * @return true si el método es estático, false de lo contrario.
+         */
+        boolean isStatic();
+    }
+
+    /**
      * Interfaz que proporciona métodos para acceder y manipular un campo de una clase.
      *
      * @param <T> el tipo de datos del campo.
