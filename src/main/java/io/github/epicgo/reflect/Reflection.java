@@ -395,6 +395,24 @@ public final class Reflection {
     }
 
     /**
+     * Obtiene un invocador de constructor para el tipo de clase y el índice de constructor proporcionados.
+     *
+     * @param clazz    el tipo de clase.
+     * @param indexOf  el índice del constructor dentro de la lista de constructores de la clase.
+     * @return un invocador de constructor para el constructor especificado por el índice.
+     * @throws IndexOutOfBoundsException si el índice está fuera de rango (menor que 0 o mayor que el número de constructores).
+     */
+    public static ConstructorInvoker getConstructor(Class<?> clazz, int indexOf) {
+        // Obtiene el constructor en la posición especificada del array de constructores
+        Constructor<?> constructor = clazz.getDeclaredConstructors()[indexOf];
+        // Hace accesible al constructor aunque sea privado
+        constructor.setAccessible(true);
+
+        // Devuelve un invocador de constructor para el constructor obtenido
+        return createConstructorInvoker(constructor);
+    }
+
+    /**
      * Obtiene un invocador de constructor para el tipo de clase y los parámetros de constructor proporcionados.
      *
      * @param clazz  el tipo de clase.
@@ -409,31 +427,42 @@ public final class Reflection {
             if (Arrays.equals(constructor.getParameterTypes(), params)) {
                 // Establece el constructor accesible
                 constructor.setAccessible(true);
-
-                // Devuelve un invocador de constructor que instancia el constructor con los argumentos proporcionados
-                return new ConstructorInvoker() {
-                    @Override
-                    public Object invoke(Object... arguments) {
-                        try {
-                            return constructor.newInstance(arguments);
-                        } catch (Exception e) {
-                            // Si se produce un error al invocar el constructor, lanza una excepción
-                            throw new RuntimeException("Cannot invoke constructor " + constructor, e);
-                        }
-                    }
-
-                    @Override
-                    public Class<?>[] getParameterTypes() {
-                        // Devuelve los tipos de parámetros del constructor
-                        return constructor.getParameterTypes();
-                    }
-                };
+                // Devuelve un invocador de constructor para el constructor encontrado
+                return createConstructorInvoker(constructor);
             }
         }
 
         // Si no se encuentra ningún constructor coincidente, lanza una excepción
         throw new IllegalStateException(String.format("Unable to find constructor for %s (%s).", clazz, Arrays.asList(params)));
     }
+
+    /**
+     * Crea un invocador de constructor para el constructor dado.
+     *
+     * @param constructor el constructor para el cual se creará el invocador.
+     * @return un invocador de constructor para el constructor dado.
+     */
+    private static ConstructorInvoker createConstructorInvoker(Constructor<?> constructor) {
+        // Devuelve un nuevo invocador de constructor que instancia el constructor dado
+        return new ConstructorInvoker() {
+            @Override
+            public Object invoke(Object... arguments) {
+                try {
+                    return constructor.newInstance(arguments);
+                } catch (Exception e) {
+                    // Si se produce un error al invocar el constructor, lanza una excepción
+                    throw new RuntimeException("Cannot invoke constructor " + constructor, e);
+                }
+            }
+
+            @Override
+            public Class<?>[] getParameterTypes() {
+                // Devuelve los tipos de parámetros del constructor
+                return constructor.getParameterTypes();
+            }
+        };
+    }
+
 
 
     /**
