@@ -3,6 +3,27 @@ package io.github.epicgo.reflect;
 public final class Reflection {
 
     /**
+     * Interfaz que proporciona un método para invocar un constructor específico de una clase.
+     */
+    public interface ConstructorInvoker {
+
+        /**
+         * Invoca el constructor con los argumentos dados y devuelve una nueva instancia de la clase.
+         *
+         * @param arguments los argumentos que se pasarán al constructor.
+         * @return una nueva instancia de la clase creada por el constructor.
+         */
+        Object invoke(Object... arguments);
+
+        /**
+         * Obtiene los tipos de parámetros del constructor.
+         *
+         * @return un array de clases que representan los tipos de parámetros del constructor.
+         */
+        Class<?>[] getParameterTypes();
+    }
+
+    /**
      * Interfaz que proporciona un método para invocar un método específico en un objeto.
      */
     public interface MethodInvoker {
