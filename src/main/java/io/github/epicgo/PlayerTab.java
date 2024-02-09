@@ -1,10 +1,15 @@
 package io.github.epicgo;
 
+import io.github.epicgo.layout.TabEntry;
+import io.github.epicgo.layout.TabLayoutManager;
 import io.github.epicgo.reflect.MinecraftReflection;
+import io.netty.util.internal.ConcurrentSet;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -12,11 +17,8 @@ import java.util.UUID;
  */
 public class PlayerTab {
 
-    // Perfiles falsos, latencias y líneas de texto para modificar el Tab de jugadores
-    private final Object[] profiles = new Object[80];
-    private final int[] latencies = new int[80];
-    private final String[] textLines = new String[80];
-
+    private final Set<TabEntry> entries = new ConcurrentSet<>();
+    private final long setupMS;
     // Jugador asociado al objeto PlayerTab
     public Player player;
 
@@ -24,14 +26,27 @@ public class PlayerTab {
     public PlayerTab(Player player) {
         this.player = player;
 
-        // Mostrar jugadores reales y perfiles falsos al inicializar
-        showFakePlayers();
-        hideRealPlayers();
+        setupMS = System.currentTimeMillis();
     }
 
+    /**
+     * Método para eliminar la Tab personalizada del jugador.
+     */
     public void removeTab() {
+        // Ocultar perfiles falsos y mostrar jugadores reales
         hideFakePlayers();
         showRealPlayers();
+
+        entries.clear();
+    }
+
+    /**
+     * Método para mostrar la Tab personalizada al jugador.
+     */
+    public void showTab() {
+        // Mostrar perfiles falsos y ocultar jugadores reales
+        showFakePlayers();
+        hideRealPlayers();
     }
 
     // Método para mostrar en el Tab a todos los jugadores reales en el servidor
@@ -52,17 +67,20 @@ public class PlayerTab {
 
     // Método para mostrar todos los perfiles falsos creados para modificar el Tab al jugador
     private void showFakePlayers() {
-        for (int index = 0; index < 80; index++) {
+        for (int tabSlot = 0; tabSlot < 80; tabSlot++) {
+            TabEntry entry = new TabEntry().setId(UUID.randomUUID()).setName(getTeamName(tabSlot)).setTabSlot(tabSlot);
+            entries.add(entry);
+
             // Crear perfiles falsos con UUIDs aleatorios y nombres de equipo formateados
-            MinecraftReflection.sendPlayerInfoPacket(player, MinecraftReflection.EnumPlayerInfoAction.ADD_PLAYER, profiles[index] = MinecraftReflection.createGameProfile(UUID.randomUUID(), getTeamName(index)), latencies[index] = 0, MinecraftReflection.EnumGamemode.NOT_SET, textLines[index] = " ");
+            MinecraftReflection.sendPlayerInfoPacket(player, MinecraftReflection.EnumPlayerInfoAction.ADD_PLAYER, MinecraftReflection.createGameProfile(entry.getId(), entry.getName()), entry.getPing(), MinecraftReflection.EnumGamemode.NOT_SET, entry.getTextLine());
         }
     }
 
     // Método para esconder todos los perfiles falsos del jugador
     private void hideFakePlayers() {
-        for (Object profile : profiles) {
+        for (TabEntry entry : entries) {
             // Enviar paquete para remover perfil falso del Tab
-            MinecraftReflection.sendPlayerInfoPacket(player, MinecraftReflection.EnumPlayerInfoAction.REMOVE_PLAYER, profile, 0, MinecraftReflection.EnumGamemode.NOT_SET, " ");
+            MinecraftReflection.sendPlayerInfoPacket(player, MinecraftReflection.EnumPlayerInfoAction.REMOVE_PLAYER, MinecraftReflection.createGameProfile(entry.getId(), entry.getName()), entry.getPing(), MinecraftReflection.EnumGamemode.NOT_SET, entry.getTextLine());
         }
     }
 
@@ -77,5 +95,9 @@ public class PlayerTab {
             // Formato con un solo color para valores menores a 10
             return ChatColor.BOLD + "" + ChatColor.BLACK + ChatColor.COLOR_CHAR + valueToFormat;
         }
+    }
+
+    public TabEntry getTabEntryBySlot(int tabSlot) {
+        return entries.stream().filter(tabEntry -> tabEntry.getTabSlot() == tabSlot).findFirst().orElse(null);
     }
 }
